@@ -14,7 +14,7 @@ import (
 func newHandler(t *testing.T, name string, extra string) *Handler {
 	t.Helper()
 	root := t.TempDir()
-	raw := json.RawMessage(`{"root":` + quote(root) + `,"allow_write":true,"allow_delete":true` + extra + `}`)
+	raw := json.RawMessage(`{"root":` + quote(root) + `,"allow_write":true,"allow_delete":true,"require_approval":false` + extra + `}`)
 	normalized, err := (Registration{}).Normalize(name, raw)
 	if err != nil {
 		t.Fatal(err)

@@ -46,7 +46,7 @@ type Settings struct {
 	MaxFilesPerCall  int      `json:"max_files_per_call,omitempty"`
 	AllowWrite       bool     `json:"allow_write,omitempty"`
 	AllowDelete      bool     `json:"allow_delete,omitempty"`
-	RequireApproval  bool     `json:"require_approval,omitempty"`
+	RequireApproval  *bool    `json:"require_approval,omitempty"`
 	FollowSymlinks   bool     `json:"follow_symlinks,omitempty"`
 }
 
@@ -58,17 +58,34 @@ func (Registration) Normalize(name string, raw json.RawMessage) (json.RawMessage
 	if !slices.Contains(capabilityNames, name) {
 		return nil, fmt.Errorf("unsupported workspace capability %q", name)
 	}
-	settings := Settings{
-		ReadAllow:        []string{"**"},
-		WriteAllow:       []string{"**"},
-		Exclude:          []string{".git/**"},
-		MaxReadBytes:     2 << 20,
-		MaxWriteBytes:    2 << 20,
-		MaxSearchResults: 200,
-		MaxFilesPerCall:  100,
-	}
+	var settings Settings
 	if err := decodeStrict(raw, &settings); err != nil {
 		return nil, err
+	}
+	if len(settings.ReadAllow) == 0 {
+		settings.ReadAllow = []string{"**"}
+	}
+	if len(settings.WriteAllow) == 0 {
+		settings.WriteAllow = []string{"**"}
+	}
+	if len(settings.Exclude) == 0 {
+		settings.Exclude = []string{".git/**"}
+	}
+	if settings.MaxReadBytes == 0 {
+		settings.MaxReadBytes = 2 << 20
+	}
+	if settings.MaxWriteBytes == 0 {
+		settings.MaxWriteBytes = 2 << 20
+	}
+	if settings.MaxSearchResults == 0 {
+		settings.MaxSearchResults = 200
+	}
+	if settings.MaxFilesPerCall == 0 {
+		settings.MaxFilesPerCall = 100
+	}
+	if settings.RequireApproval == nil {
+		mutating := isWrite(name) || name == Delete
+		settings.RequireApproval = &mutating
 	}
 	root, err := canonicalRoot(settings.Root)
 	if err != nil {
@@ -127,7 +144,7 @@ func (Registration) IsSubset(name string, parent, child json.RawMessage) error {
 	if !p.AllowWrite && c.AllowWrite || !p.AllowDelete && c.AllowDelete || !p.FollowSymlinks && c.FollowSymlinks {
 		return errors.New("child workspace permissions widen parent permissions")
 	}
-	if p.RequireApproval && !c.RequireApproval {
+	if p.RequireApproval != nil && *p.RequireApproval && (c.RequireApproval == nil || !*c.RequireApproval) {
 		return errors.New("child cannot disable required approval")
 	}
 	if c.MaxReadBytes > p.MaxReadBytes || c.MaxWriteBytes > p.MaxWriteBytes ||
@@ -160,7 +177,7 @@ type Handler struct {
 func (h *Handler) Handles(name string) bool { return name == h.name }
 
 func (h *Handler) DispatchCall(ctx context.Context, call dispatcher.Call) (dispatcher.Outcome, error) {
-	if h.settings.RequireApproval {
+	if h.settings.RequireApproval != nil && *h.settings.RequireApproval {
 		if resolved, ok := resolution.FromContext(ctx); !ok || resolved.Decision != resolution.Approved {
 			return dispatcher.Yield("Approve " + call.Name + " inside " + h.settings.Root), nil
 		}
