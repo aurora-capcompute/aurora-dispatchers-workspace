@@ -1,9 +1,9 @@
 package workspace
 
 import (
-	"aurora-dispatchers/builtin"
-	"aurora-dispatchers/registry"
-	"capcompute/dispatcher"
+	"github.com/aurora-capcompute/aurora-dispatchers/builtin"
+	"github.com/aurora-capcompute/aurora-dispatchers/registry"
+	"github.com/aurora-capcompute/capcompute/dispatcher"
 	"context"
 	"encoding/json"
 	"os"
