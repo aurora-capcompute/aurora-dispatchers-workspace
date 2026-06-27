@@ -3,7 +3,6 @@ package workspace
 import (
 	"github.com/aurora-capcompute/aurora-dispatchers/builtin"
 	"github.com/aurora-capcompute/aurora-dispatchers/registry"
-	"github.com/aurora-capcompute/aurora-dispatchers/resolution"
 	"bytes"
 	"github.com/aurora-capcompute/capcompute/dispatcher"
 	"context"
@@ -176,9 +175,9 @@ type Handler struct {
 
 func (h *Handler) Handles(name string) bool { return name == h.name }
 
-func (h *Handler) DispatchCall(ctx context.Context, call dispatcher.Call) (dispatcher.Outcome, error) {
+func (h *Handler) DispatchCall(ctx context.Context, call dispatcher.Call, auth dispatcher.Authorization) (dispatcher.Outcome, error) {
 	if h.settings.RequireApproval != nil && *h.settings.RequireApproval {
-		if resolved, ok := resolution.FromContext(ctx); !ok || resolved.Decision != resolution.Approved {
+		if auth.Decision != dispatcher.Approved {
 			return dispatcher.Yield("Approve " + call.Name + " inside " + h.settings.Root), nil
 		}
 	}
@@ -204,13 +203,13 @@ func (h *Handler) DispatchCall(ctx context.Context, call dispatcher.Call) (dispa
 	case Delete:
 		value, err = h.delete(call.Args)
 	default:
-		return dispatcher.Failed("unknown workspace call: " + call.Name), nil
+		return dispatcher.Fail("unknown workspace call: " + call.Name), nil
 	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return dispatcher.Outcome{}, ctx.Err()
 		}
-		return dispatcher.Failed(err.Error()), nil
+		return dispatcher.Fail(err.Error()), nil
 	}
 	raw, err := json.Marshal(value)
 	if err != nil {

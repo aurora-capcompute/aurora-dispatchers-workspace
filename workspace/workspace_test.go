@@ -30,7 +30,7 @@ func TestWriteReadAndHashConflict(t *testing.T) {
 	h := newHandler(t, Write, "")
 	out, err := h.DispatchCall(context.Background(), dispatcher.Call{
 		Name: Write, Args: json.RawMessage(`{"path":"a.txt","content":"hello"}`),
-	})
+	}, dispatcher.Authorization{})
 	if err != nil || out.Kind() != dispatcher.OutcomeResult {
 		t.Fatalf("write = %v, %v", out.Kind(), err)
 	}
@@ -39,7 +39,7 @@ func TestWriteReadAndHashConflict(t *testing.T) {
 	hash := written["hash"].(string)
 
 	h.name = Read
-	out, _ = h.DispatchCall(context.Background(), dispatcher.Call{Name: Read, Args: json.RawMessage(`{"path":"a.txt"}`)})
+	out, _ = h.DispatchCall(context.Background(), dispatcher.Call{Name: Read, Args: json.RawMessage(`{"path":"a.txt"}`)}, dispatcher.Authorization{})
 	if out.Kind() != dispatcher.OutcomeResult {
 		t.Fatalf("read = %v: %s", out.Kind(), out.Message())
 	}
@@ -47,7 +47,7 @@ func TestWriteReadAndHashConflict(t *testing.T) {
 	h.name = Write
 	out, _ = h.DispatchCall(context.Background(), dispatcher.Call{
 		Name: Write, Args: json.RawMessage(`{"path":"a.txt","content":"changed","expected_hash":"bad"}`),
-	})
+	}, dispatcher.Authorization{})
 	if out.Kind() != dispatcher.OutcomeFailed {
 		t.Fatalf("expected conflict, got %v (initial hash %s)", out.Kind(), hash)
 	}
@@ -56,7 +56,7 @@ func TestWriteReadAndHashConflict(t *testing.T) {
 func TestTraversalAndSymlinkEscapeRejected(t *testing.T) {
 	h := newHandler(t, Read, "")
 	for _, args := range []string{`{"path":"../secret"}`, `{"path":"/etc/passwd"}`} {
-		out, _ := h.DispatchCall(context.Background(), dispatcher.Call{Name: Read, Args: json.RawMessage(args)})
+		out, _ := h.DispatchCall(context.Background(), dispatcher.Call{Name: Read, Args: json.RawMessage(args)}, dispatcher.Authorization{})
 		if out.Kind() != dispatcher.OutcomeFailed {
 			t.Fatalf("%s was not rejected", args)
 		}
@@ -65,7 +65,7 @@ func TestTraversalAndSymlinkEscapeRejected(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(h.settings.Root, "link")); err != nil {
 		t.Fatal(err)
 	}
-	out, _ := h.DispatchCall(context.Background(), dispatcher.Call{Name: Read, Args: json.RawMessage(`{"path":"link/file"}`)})
+	out, _ := h.DispatchCall(context.Background(), dispatcher.Call{Name: Read, Args: json.RawMessage(`{"path":"link/file"}`)}, dispatcher.Authorization{})
 	if out.Kind() != dispatcher.OutcomeFailed {
 		t.Fatal("symlink escape was not rejected")
 	}
